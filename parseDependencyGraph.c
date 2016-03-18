@@ -92,12 +92,12 @@ void doit(char *text)
 				a1=cJSON_GetObjectItem(download,"id")->valuestring;
         		  }
 			else{
-				a1=cJSON_GetObjectItem(comp,"id")->valuestring;
+				a1=cJSON_GetObjectItem(cJSON_GetArrayItem(comps, j-1),"id")->valuestring;
 			}
 			 root=cJSON_CreateObject();
         		 int deps_length=cJSON_GetArraySize(deps);
 			 char dep_id[6];
-			 sprintf(dep_id,"dep%d",deps_length);
+			 sprintf(dep_id,"dep%d",deps_length+1);
         		 cJSON_AddStringToObject(root,"id",dep_id);	
         		 cJSON_AddStringToObject(root,"a1",a1);	
         		 cJSON_AddStringToObject(root,"a2",cJSON_GetObjectItem(comp,"id")-> valuestring);	
@@ -120,31 +120,39 @@ void doit(char *text)
 		 }
 		
 		}
+     /*out=cJSON_Print(deps);
+     printf("%s\n",out);*/
 		
     /* Add dependencies to activities */
     for (i=0; i< cJSON_GetArraySize(deps); i++){
 	cJSON * dep= cJSON_GetArrayItem(deps,i);
 	
+	//printf("==========");
 	for (j=0; j< cJSON_GetArraySize(this_acts_array); j++){
 		cJSON * obj= cJSON_GetArrayItem(this_acts_array, j);
 		
 		 out=cJSON_Print(obj);
-		 char *Cid=malloc(10);
+	 	 char *Cid=malloc(10);
 		 sprintf(Cid,"%.9s",out);
    		
 		 char *pch = strstr(Cid, cJSON_GetObjectItem(dep,"a1")->valuestring);
 		 if(pch){
 			
 			b1= cJSON_GetObjectItem(obj,cJSON_GetObjectItem(dep,"a1")->valuestring);
+			//out=cJSON_Print(b1);
+	 	 	//printf("%s\n",out);
 			
 		}
 		
 		char *pch1 = strstr(Cid, cJSON_GetObjectItem(dep,"a2")->valuestring);
 		 if(pch1){
 			b2= cJSON_GetObjectItem(obj,cJSON_GetObjectItem(dep,"a2")->valuestring);
+			//out=cJSON_Print(b2);
+	 	 	//printf("%s\n",out);
 			}
 		
 	}
+	//printf("==========");
 	 
 	
 	/* Add to a2 that 'a2 depends on a1' */
