@@ -200,7 +200,13 @@ void dofile(char *filename)
 {
 	FILE *f;long len;char *data;
 	
-	f=fopen(filename,"rb");fseek(f,0,SEEK_END);len=ftell(f);fseek(f,0,SEEK_SET);
+	f=fopen(filename,"rb");
+	if (f == NULL)
+   		 {
+        	perror("Error opening file\n");
+		exit(0);
+   	}
+	fseek(f,0,SEEK_END);len=ftell(f);fseek(f,0,SEEK_SET);
 	data=(char*)malloc(len+1);fread(data,1,len,f);fclose(f);
 	doit(data);
 	free(data);
