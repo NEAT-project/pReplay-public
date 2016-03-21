@@ -15,14 +15,14 @@ void doit(char *text)
 {
    cJSON *temp_obj;
    cJSON *json=cJSON_Parse(text);
-   if (!json) {printf("Error before, 1: [%s]\n",cJSON_GetErrorPtr());}
+   if (!json) {printf("Error before: [%s]\n",cJSON_GetErrorPtr());}
 
 
    cJSON *objs=cJSON_GetObjectItem(json,"objs");
-   if (!objs) {printf("Error before, 2: [%s]\n",cJSON_GetErrorPtr());}
+   if (!objs) {printf("Error before: [%s]\n",cJSON_GetErrorPtr());}
    
    cJSON *deps=cJSON_GetObjectItem(json,"deps");
-   if (!deps) {printf("Error before, 3: [%s]\n",cJSON_GetErrorPtr());}
+   if (!deps) {printf("Error before: [%s]\n",cJSON_GetErrorPtr());}
    
    int i,j;
    char *out, *a1, *a2;
@@ -36,7 +36,7 @@ void doit(char *text)
 		cJSON * obj= cJSON_GetArrayItem(objs, i);
 		/* Handle array of comp */
 	        comps=cJSON_GetObjectItem(obj,"comps");
-      		if (!comps) {printf("Error before, 4: [%s]\n",cJSON_GetErrorPtr());}
+      		if (!comps) {printf("Error before: [%s]\n",cJSON_GetErrorPtr());}
 		
 		/* Handle download */
 		cJSON * download=cJSON_GetObjectItem(obj,"download");
@@ -45,10 +45,7 @@ void doit(char *text)
 		
 		/* Index obj by object id */
 		
-		/*printf("||||||\n");
-		out=cJSON_Print(obj);
-		printf("%s\n",out);
-		printf("||||||\n");*/
+		
 		
 		temp1=cJSON_CreateObject();
 		cJSON_AddStringToObject(temp1,"id",cJSON_GetObjectItem(obj,"id")->valuestring);
@@ -77,12 +74,17 @@ void doit(char *text)
 		cJSON_AddItemReferenceToArray(this_acts_array,this_acts);
 
 
-
+	        
 	
-		
+		/* printf("||||||\n");
+		out=cJSON_Print(obj);
+		printf("%s\n",out);
+		printf("||||||\n"); */
 
 		 for (j=0; j< cJSON_GetArraySize(comps); j++)
 			{
+			
+	
 			cJSON * comp= cJSON_GetArrayItem(comps, j);
 			cJSON_AddStringToObject(comp, "obj_id",cJSON_GetObjectItem(obj,"id")->valuestring);
 			 /*Add natural dependency
@@ -104,72 +106,127 @@ void doit(char *text)
 			 cJSON_AddNumberToObject(root,"time",-1);
 			 cJSON_AddItemReferenceToArray(deps,root);
 			 //out=cJSON_Print(deps);
-			 //printf("%s\n",out);
+			
 			 temp2=cJSON_CreateObject();
+		          
+                         
 	
 			 cJSON_AddStringToObject(temp2,"id",cJSON_GetObjectItem(comp,"id")->valuestring);
-			 cJSON_AddStringToObject(temp2,"type",cJSON_GetObjectItem(comp,"type")->valuestring);
+			 
+			
+			// cJSON_AddStringToObject(temp2,"type",cJSON_GetObjectItem(comp,"type")->valuestring);			
+			//printf ("==%s==\n",cJSON_GetObjectItem(comp,"type")->valuestring);
+			if (cJSON_GetObjectItem(comp,"type")->valuestring!=NULL)
+				cJSON_AddStringToObject(temp2,"type",cJSON_GetObjectItem(comp,"type")->valuestring);
+			else
+				cJSON_AddNumberToObject(temp2,"type",cJSON_GetObjectItem(comp,"type")->valueint);
+			
+			 //printf("%s\n",a1);
+			
 			 cJSON_AddNumberToObject(temp2,"time",cJSON_GetObjectItem(comp,"time")->valueint);
 			 cJSON_AddStringToObject(temp2,"obj_id",cJSON_GetObjectItem(obj,"id")->valuestring);
+			
 			 this_acts=cJSON_CreateObject();
                 		
 		         cJSON_AddItemReferenceToObject(this_acts,cJSON_GetObjectItem(comp,"id")->valuestring,temp2);
 		         cJSON_AddItemReferenceToArray(this_acts_array,this_acts);
+			
 
 			
 		 }
+	       
 		
 		}
-     /*out=cJSON_Print(deps);
-     printf("%s\n",out);*/
+     
 		
+
+
     /* Add dependencies to activities */
     for (i=0; i< cJSON_GetArraySize(deps); i++){
 	cJSON * dep= cJSON_GetArrayItem(deps,i);
+    
 	
-	//printf("==========");
+	
 	for (j=0; j< cJSON_GetArraySize(this_acts_array); j++){
 		cJSON * obj= cJSON_GetArrayItem(this_acts_array, j);
 		
+		if (!obj) {printf("Error before: [%s]\n",cJSON_GetErrorPtr());}
+		
+
+		//printf("=I am here=\n");
+		
+		 // out=cJSON_Print(dep);
+		// printf("%s\n",out);
+
 		 out=cJSON_Print(obj);
-	 	 char *Cid=malloc(10);
-		 sprintf(Cid,"%.9s",out);
-   		
-		 char *pch = strstr(Cid, cJSON_GetObjectItem(dep,"a1")->valuestring);
-		 if(pch){
+		 //printf("%s\n",out);
+		
+	 	 char *Cidd=malloc(20);
+		 //sprintf(Cid,"%.9s",out);
+		 Cidd=strtok(out,":");
+		 char* Cid=Cidd+4; 
+		 Cid[strlen(Cid)-1] = 0;
+		
+   		 /*if (strcmp(Cid,cJSON_GetObjectItem(dep,"a1")->valuestring)==0 || strncmp(Cid,cJSON_GetObjectItem(dep,"a2")->valuestring)==0)
+			printf("Yahoo\n");*/
+		 char *pch = strstr(Cid,cJSON_GetObjectItem(dep,"a1")->valuestring);
+		/* out=cJSON_Print(dep);
+     		 printf("%s\n",out);*/
+		 
+                // printf("(Ci)%s\n(a1)%s\n(a2)%s\n",Cid,cJSON_GetObjectItem(dep,"a1")->valuestring, cJSON_GetObjectItem(dep,"a2")->valuestring);
+		
+		// printf("=I am here=%s %s\n",pch,cJSON_GetObjectItem(dep,"a1")->valuestring);
+		 if(pch && (strlen(Cid)==strlen(cJSON_GetObjectItem(dep,"a1")->valuestring))){
+			// printf("=I am here=b1 %s\n", Cid);
 			
 			b1= cJSON_GetObjectItem(obj,cJSON_GetObjectItem(dep,"a1")->valuestring);
 			//out=cJSON_Print(b1);
 	 	 	//printf("%s\n",out);
 			
 		}
+                
 		
 		char *pch1 = strstr(Cid, cJSON_GetObjectItem(dep,"a2")->valuestring);
-		 if(pch1){
+	//	printf("=I am here=%s %s\n",pch1,cJSON_GetObjectItem(dep,"a2")->valuestring);		 
+		if(pch1 &&  (strlen(Cid)==strlen(cJSON_GetObjectItem(dep,"a2")->valuestring))){
+			// printf("=I am here=b2 %s\n",Cid);
 			b2= cJSON_GetObjectItem(obj,cJSON_GetObjectItem(dep,"a2")->valuestring);
 			//out=cJSON_Print(b2);
 	 	 	//printf("%s\n",out);
 			}
-		
+	// printf("End of the loop %d, %d\n",j,cJSON_GetArraySize(this_acts_array));	
 	}
-	//printf("==========");
-	 
+	
+	
+
+ 
 	
 	/* Add to a2 that 'a2 depends on a1' */
 
 	temp=cJSON_CreateObject();
 	temp_array=cJSON_CreateArray();
 	cJSON_AddStringToObject(temp,"id",cJSON_GetObjectItem(b1,"id")->valuestring);
+
+	
+
 	cJSON_AddNumberToObject(temp,"time",cJSON_GetObjectItem(dep,"time")->valueint);
+
+	
+	
 	cJSON_AddItemToArray(temp_array,temp);
 	cJSON_AddItemReferenceToObject(b2,"deps",temp_array);
+
+	
 
 	temp=cJSON_CreateObject();
 	temp_array=cJSON_CreateArray();
 	cJSON_AddStringToObject(temp,"id",cJSON_GetObjectItem(b2,"id")->valuestring);
-	cJSON_AddNumberToObject(temp,"time",cJSON_GetObjectItem(dep,"time")->valueint);
+	cJSON_AddNumberToObject(temp,"time",cJSON_GetObjectItem(dep,"time")->valueint);	
 	cJSON_AddItemToArray(temp_array,temp);
+	
 	cJSON_AddItemReferenceToObject(b1,"triggers",temp_array);
+
+	
 	
 	/* out=cJSON_Print(b1);
 	 printf("%s\n",out);
