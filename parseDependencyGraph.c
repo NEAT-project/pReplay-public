@@ -213,8 +213,13 @@ void doit(char *text)
 
 	
 	
-	cJSON_AddItemToArray(temp_array,temp);
-	cJSON_AddItemReferenceToObject(b2,"deps",temp_array);
+	
+	if (cJSON_HasObjectItem(b2,"deps"))
+		cJSON_AddItemReferenceToArray(cJSON_GetObjectItem(b2,"deps"),temp);
+	else{
+		cJSON_AddItemToArray(temp_array,temp);		
+		cJSON_AddItemReferenceToObject(b2,"deps",temp_array);
+	}
 
 	
 
@@ -222,9 +227,16 @@ void doit(char *text)
 	temp_array=cJSON_CreateArray();
 	cJSON_AddStringToObject(temp,"id",cJSON_GetObjectItem(b2,"id")->valuestring);
 	cJSON_AddNumberToObject(temp,"time",cJSON_GetObjectItem(dep,"time")->valueint);	
-	cJSON_AddItemToArray(temp_array,temp);
 	
-	cJSON_AddItemReferenceToObject(b1,"triggers",temp_array);
+	
+
+	if (cJSON_HasObjectItem(b1,"triggers"))
+		cJSON_AddItemReferenceToArray(cJSON_GetObjectItem(b1,"triggers"),temp);
+	else{
+		cJSON_AddItemToArray(temp_array,temp);
+		cJSON_AddItemReferenceToObject(b1,"triggers",temp_array);
+		
+	}
 
 	
 	
