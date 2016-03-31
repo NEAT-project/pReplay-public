@@ -5,16 +5,215 @@ in todays browser
 
 written by-- Mohd Rajiullah*/
 
- 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include <ctype.h>
 #include "cJSON.h"
+
+void createActivity(char *job_id);
+cJSON *json, *this_objs_array, *this_acts_array,*map_start, *map_complete;
+struct timeval start;
+
+static int cJSON_strcasecmp(const char *s1,const char *s2)
+{
+        if (!s1) return (s1==s2)?0:1;if (!s2) return 1;
+        for(; tolower(*s1) == tolower(*s2); ++s1, ++s2) if(*s1 == 0)    return 0;
+        return tolower(*(const unsigned char *)s1) - tolower(*(const unsigned char *)s2);
+}
+
+int cJSON_HasArrayItem(cJSON *array, const char *string)
+{
+	int i;
+	char *out, c1, c2;
+	for(i=0; i<cJSON_GetArraySize(array); i++)
+		{
+		cJSON * obj= cJSON_GetArrayItem(array, i);
+		if (!obj) {printf("Error before: [%s]\n",cJSON_GetErrorPtr());}
+		out=cJSON_Print(obj);
+		char *C1=malloc(20);
+		C1=strtok(out,":");
+		char * C2=C1+4;
+		C2[strlen(C2)-1]=0;
+		if(cJSON_strcasecmp(C2,string)==0){
+			return i;
+		}
+		
+	}
+	return -1;
+}
+
+int checkDependedActivities(char *id)
+{
+	int is_all_complete=1;
+	int i=cJSON_HasArrayItem(this_acts_array,id);
+	int j;
+	if(i!=-1){
+		cJSON * objs= cJSON_GetArrayItem(this_acts_array, i);
+		cJSON * obj= cJSON_GetObjectItem(objs, id);
+		cJSON *deps=cJSON_GetObjectItem(obj,"deps");
+		for(j=0; j<cJSON_GetArraySize(deps); j++){
+			cJSON * dep= cJSON_GetArrayItem(deps, j);
+			if(cJSON_GetObjectItem(dep,"time")->valueint < 0){
+				if(cJSON_HasObjectItem(map_complete,cJSON_GetObjectItem(dep,"id")->valuestring)){
+					if(cJSON_GetObjectItem(map_complete,cJSON_GetObjectItem(dep,"id")->valuestring)->valueint!=1){
+						is_all_complete=0;
+						break;
+					}
+				}
+				else{
+						is_all_complete=0;
+						break;
+				}
+			}
+			else{
+				if(cJSON_HasObjectItem(map_start,cJSON_GetObjectItem(dep,"id")->valuestring)){
+					if(cJSON_GetObjectItem(map_start,cJSON_GetObjectItem(dep,"id")->valuestring)->valueint!=1){
+						is_all_complete=0;
+						break;
+					}
+				}
+				else{
+						is_all_complete=0;
+						break;
+				}
+			}
+
+		}
+
+	}
+	return is_all_complete;
+}
+
+void onComplete(cJSON *obj_name)
+{
+	struct timeval te;
+	int i;
+	gettimeofday(&te,NULL);
+	double end_time=((te.tv_sec-start.tv_sec)*1000+(double)(te.tv_usec-start.tv_usec)/1000);
+	cJSON_AddNumberToObject(obj_name,"ts_e",end_time);
+
+	printf("=== [onComplete][%f] {\"id\":%s,\"type\":%s,\"is_started\":%d,\"ts_s\":%f,\"ts_e\":%f}\n",end_time,cJSON_GetObjectItem(obj_name,"id")->valuestring,cJSON_GetObjectItem(obj_name,"type")->valuestring,cJSON_GetObjectItem(obj_name,"is_started")->valueint,cJSON_GetObjectItem(obj_name,"ts_s")->valuedouble,cJSON_GetObjectItem(obj_name,"ts_e")->valuedouble);
+
+
+	// TO DO update task completion maps
+	if(!cJSON_HasObjectItem(map_complete,cJSON_GetObjectItem(obj_name,"id")->valuestring))
+		cJSON_AddNumberToObject(map_complete,cJSON_GetObjectItem(obj_name,"id")->valuestring,1);
+	
+	// Check whether should trigger dependent activities when 'time' == -1	
+	if(cJSON_HasObjectItem(obj_name,"triggers")){
+		cJSON *triggers=cJSON_GetObjectItem(obj_name,"triggers");
+		for(i=0; i<cJSON_GetArraySize(triggers); i++){
+			cJSON *trigger=cJSON_GetArrayItem(triggers,i);
+			if(cJSON_GetObjectItem(trigger,"time")->valueint==-1){
+				// Check whether all activities that trigger.id depends on are finished
+				if (checkDependedActivities(cJSON_GetObjectItem(trigger,"id")->valuestring))
+					createActivity(cJSON_GetObjectItem(trigger,"id")->valuestring);
+			}
+		}
+	}
+
+}
+
+void setTimeout(int ms)
+{
+	struct timeval ts,te;
+	gettimeofday(&ts,NULL);
+	printf("Timeout starts: %f ms \n",((ts.tv_sec-start.tv_sec)*1000+(double)(ts.tv_usec-start.tv_usec)/1000));
+	usleep(ms*1000);
+	gettimeofday(&te,NULL);
+	printf("Timeout ends: %f ms \n",((te.tv_sec-start.tv_sec)*1000+(double)(te.tv_usec-start.tv_usec)/1000));
+
+	
+}
+
+
+void createActivity(char *job_id)
+{
+	int i=cJSON_HasArrayItem(this_acts_array,job_id);
+	if(i!=-1){
+		cJSON * obj= cJSON_GetArrayItem(this_acts_array, i);
+		cJSON * obj_name=cJSON_GetObjectItem(obj,job_id);
+		if(cJSON_HasObjectItem(obj_name,"is_started")){
+			if(cJSON_GetObjectItem(obj_name,"is_started")->valueint==1)
+				return;
+			else
+				cJSON_GetObjectItem(obj_name,"is_started")->valueint=1;
+		}
+		else
+			{
+				cJSON_AddNumberToObject(obj_name,"is_started",1);
+		}
+
+	
+	struct timeval ts_s;
+	gettimeofday(&ts_s, NULL);
+	cJSON_AddNumberToObject(obj_name,"ts_s",((ts_s.tv_sec-start.tv_sec)*1000+(double)(ts_s.tv_usec-start.tv_usec)/1000));
+	printf("Object id: %s, type: %s started at %f ms\n",cJSON_GetObjectItem(obj_name,"obj_id")->valuestring,cJSON_GetObjectItem(obj_name,"type")->valuestring,((ts_s.tv_sec-start.tv_sec)*1000+(double)(ts_s.tv_usec-start.tv_usec)/1000));
+	
+	if(cJSON_strcasecmp(cJSON_GetObjectItem(obj_name,"type")->valuestring,"download")==0){
+		i=cJSON_HasArrayItem(this_objs_array,cJSON_GetObjectItem(obj_name,"obj_id")->valuestring);
+		if(i!=-1){
+			obj= cJSON_GetArrayItem(this_objs_array, i);
+			cJSON * this_obj= cJSON_GetObjectItem(obj, cJSON_GetObjectItem(obj_name, "obj_id")->valuestring);
+			printf("Host: %s\n",cJSON_GetObjectItem(this_obj,"host")->valuestring);
+			printf("Path: %s\n",cJSON_GetObjectItem(this_obj,"path")->valuestring);
+			printf("when_comp_start: %d\n",cJSON_GetObjectItem(this_obj,"when_comp_start")->valueint);
+			onComplete(obj_name);
+
+
+		}
+	}
+	else {
+	// For comp activity
+		setTimeout(cJSON_GetObjectItem(obj_name,"time")->valueint);
+		onComplete(obj_name);
+	}
+	// TO DO update task start maps
+	if(!cJSON_HasObjectItem(map_start,cJSON_GetObjectItem(obj_name,"id")->valuestring))
+		cJSON_AddNumberToObject(map_start,cJSON_GetObjectItem(obj_name,"id")->valuestring,1);
+	
+	// Check whether should trigger dependent activities when 'time' != -1	
+	if(cJSON_HasObjectItem(obj_name,"triggers")){
+		cJSON *triggers=cJSON_GetObjectItem(obj_name,"triggers");
+		for(i=0; i<cJSON_GetArraySize(triggers); i++){
+			cJSON *trigger=cJSON_GetArrayItem(triggers,i);
+			if(cJSON_GetObjectItem(trigger,"time")->valueint!=-1){
+				// Check whether all activities that trigger.id depends on are finished
+				if(checkDependedActivities(cJSON_GetObjectItem(trigger,"id")->valuestring)){
+					setTimeout(cJSON_GetObjectItem(trigger,"time")->valueint);
+					createActivity(cJSON_GetObjectItem(trigger,"id")->valuestring);
+				}
+			}
+		}
+	}
+
+
+	/*char *out;
+	out=cJSON_Print(this_acts_array);
+	printf("%s\n",out);*/
+
+	}
+	
+
+}
+
+void run()
+{
+	map_start=cJSON_CreateObject();
+	map_complete=cJSON_CreateObject();
+	gettimeofday(&start, NULL);
+	createActivity(cJSON_GetObjectItem(json,"start_activity")->valuestring);
+	//printf("start_activity:%s\n",cJSON_GetObjectItem(json,"start_activity")->valuestring); 
+}
+
 
 /* Parse text to JSON, then render back to text, and print! */
 void doit(char *text)
 {
    cJSON *temp_obj;
-   cJSON *json=cJSON_Parse(text);
+   json=cJSON_Parse(text);
    if (!json) {printf("Error before: [%s]\n",cJSON_GetErrorPtr());}
 
 
@@ -27,8 +226,8 @@ void doit(char *text)
    int i,j;
    char *out, *a1, *a2;
    
-   cJSON *this_objs_array=cJSON_CreateArray();
-   cJSON *this_acts_array=cJSON_CreateArray();
+   this_objs_array=cJSON_CreateArray();
+   this_acts_array=cJSON_CreateArray();
    cJSON *this_objs, *temp1, *temp2, *this_acts, *comps, *root, *b1, *b2, *temp, *temp_array;
    
    for(i=0; i<cJSON_GetArraySize(objs); i++)
@@ -44,9 +243,7 @@ void doit(char *text)
         	cJSON_AddStringToObject(download, "mime","download");
 		
 		/* Index obj by object id */
-		
-		
-		
+
 		temp1=cJSON_CreateObject();
 		cJSON_AddStringToObject(temp1,"id",cJSON_GetObjectItem(obj,"id")->valuestring);
 		cJSON_AddStringToObject(temp1,"host",cJSON_GetObjectItem(obj,"host")->valuestring);
@@ -167,34 +364,20 @@ void doit(char *text)
 		 char* Cid=Cidd+4; 
 		 Cid[strlen(Cid)-1] = 0;
 		
-   		 /*if (strcmp(Cid,cJSON_GetObjectItem(dep,"a1")->valuestring)==0 || strncmp(Cid,cJSON_GetObjectItem(dep,"a2")->valuestring)==0)
-			printf("Yahoo\n");*/
+   
 		 char *pch = strstr(Cid,cJSON_GetObjectItem(dep,"a1")->valuestring);
-		/* out=cJSON_Print(dep);
-     		 printf("%s\n",out);*/
-		 
-                // printf("(Ci)%s\n(a1)%s\n(a2)%s\n",Cid,cJSON_GetObjectItem(dep,"a1")->valuestring, cJSON_GetObjectItem(dep,"a2")->valuestring);
-		
-		// printf("=I am here=%s %s\n",pch,cJSON_GetObjectItem(dep,"a1")->valuestring);
+	
+     		
 		 if(pch && (strlen(Cid)==strlen(cJSON_GetObjectItem(dep,"a1")->valuestring))){
-			// printf("=I am here=b1 %s\n", Cid);
-			
 			b1= cJSON_GetObjectItem(obj,cJSON_GetObjectItem(dep,"a1")->valuestring);
-			//out=cJSON_Print(b1);
-	 	 	//printf("%s\n",out);
-			
 		}
                 
 		
 		char *pch1 = strstr(Cid, cJSON_GetObjectItem(dep,"a2")->valuestring);
-	//	printf("=I am here=%s %s\n",pch1,cJSON_GetObjectItem(dep,"a2")->valuestring);		 
+		 
 		if(pch1 &&  (strlen(Cid)==strlen(cJSON_GetObjectItem(dep,"a2")->valuestring))){
-			// printf("=I am here=b2 %s\n",Cid);
 			b2= cJSON_GetObjectItem(obj,cJSON_GetObjectItem(dep,"a2")->valuestring);
-			//out=cJSON_Print(b2);
-	 	 	//printf("%s\n",out);
-			}
-	// printf("End of the loop %d, %d\n",j,cJSON_GetArraySize(this_acts_array));	
+			}	
 	}
 	
 	
@@ -258,7 +441,7 @@ void doit(char *text)
 	printf("%s\n",out);
 	//free(out);
    
-   
+   //printf("start_activity:%s\n",cJSON_GetObjectItem(json,"start_activity")->valuestring); 
 		
     /*for(i=0; i<cJSON_GetArraySize(this_acts_array); i++)
 		{
@@ -267,8 +450,11 @@ void doit(char *text)
 			out=cJSON_Print(obj);
 			printf("%s\n",out);
 		}*/
+
+	run();
 	
 }
+
 
 
 
