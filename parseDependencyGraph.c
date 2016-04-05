@@ -268,6 +268,8 @@ void doit(char *text)
 		/* Handle download */
 		cJSON * download=cJSON_GetObjectItem(obj,"download");
         	cJSON_AddStringToObject(download, "obj_id",cJSON_GetObjectItem(obj,"id")->valuestring);
+			cJSON_DeleteItemFromObject(download,"type");
+			cJSON_AddStringToObject(download, "type","download");
         	cJSON_AddStringToObject(download, "mime","download");
 		
 		/* Index obj by object id */
