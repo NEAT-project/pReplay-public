@@ -6,15 +6,19 @@ in todays browser
 written by-- Mohd Rajiullah*/
 
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <pthread.h>
 #include "cJSON.h"
 
 void createActivity(char *job_id);
 cJSON *json, *this_objs_array, *this_acts_array,*map_start, *map_complete;
 struct timeval start;
+
+
 
 static int cJSON_strcasecmp(const char *s1,const char *s2)
 {
@@ -128,9 +132,21 @@ void setTimeout(int ms)
 	
 }
 
+void *compActivity(void *arg)
+{
+	cJSON *obj_name= arg;
+	printf("Time out value: %d\n",cJSON_GetObjectItem(obj_name,"time")->valueint);
+	setTimeout(cJSON_GetObjectItem(obj_name,"time")->valueint);
+	onComplete(obj_name);
+	return ((void*)0);
+}
+
 
 void createActivity(char *job_id)
 {
+	pthread_t tid;
+
+
 	int i=cJSON_HasArrayItem(this_acts_array,job_id);
 	if(i!=-1){
 		cJSON * obj= cJSON_GetArrayItem(this_acts_array, i);
@@ -167,8 +183,9 @@ void createActivity(char *job_id)
 	}
 	else {
 	// For comp activity
-		setTimeout(cJSON_GetObjectItem(obj_name,"time")->valueint);
-		onComplete(obj_name);
+		//setTimeout(cJSON_GetObjectItem(obj_name,"time")->valueint);
+		//onComplete(obj_name);
+		pthread_create(&tid,NULL , compActivity, (void *) obj_name);
 	}
 	// TO DO update task start maps
 	if(!cJSON_HasObjectItem(map_start,cJSON_GetObjectItem(obj_name,"id")->valuestring))
@@ -205,6 +222,7 @@ void run()
 	map_complete=cJSON_CreateObject();
 	gettimeofday(&start, NULL);
 	createActivity(cJSON_GetObjectItem(json,"start_activity")->valuestring);
+	sleep(5);
 	//printf("start_activity:%s\n",cJSON_GetObjectItem(json,"start_activity")->valuestring); 
 }
 
