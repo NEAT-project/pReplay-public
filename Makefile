@@ -5,7 +5,7 @@ CPLR=gcc
 all:dParser
 
 dParser: $(SRC) Makefile
-	$(CPLR) $(SRC) -lm -o $@
+	$(CPLR) $(SRC) -lm -lpthread -o $@
 
 clean:
 	rm -rf dParser 	 
