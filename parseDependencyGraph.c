@@ -135,16 +135,24 @@ void setTimeout(int ms)
 void *compActivity(void *arg)
 {
 	cJSON *obj_name= arg;
-	printf("Time out value: %d\n",cJSON_GetObjectItem(obj_name,"time")->valueint);
+	//printf("Time out value: %d\n",cJSON_GetObjectItem(obj_name,"time")->valueint);
 	setTimeout(cJSON_GetObjectItem(obj_name,"time")->valueint);
 	onComplete(obj_name);
+	return ((void*)0);
+}
+
+void *createActivityAfterTimeout(void *arg)
+{
+	cJSON *trigger= arg;
+	setTimeout(cJSON_GetObjectItem(trigger,"time")->valueint);
+	createActivity(cJSON_GetObjectItem(trigger,"id")->valuestring);
 	return ((void*)0);
 }
 
 
 void createActivity(char *job_id)
 {
-	pthread_t tid;
+	pthread_t tid1, tid2;
 
 
 	int i=cJSON_HasArrayItem(this_acts_array,job_id);
@@ -185,7 +193,7 @@ void createActivity(char *job_id)
 	// For comp activity
 		//setTimeout(cJSON_GetObjectItem(obj_name,"time")->valueint);
 		//onComplete(obj_name);
-		pthread_create(&tid,NULL , compActivity, (void *) obj_name);
+		pthread_create(&tid1,NULL , compActivity, (void *) obj_name);
 	}
 	// TO DO update task start maps
 	if(!cJSON_HasObjectItem(map_start,cJSON_GetObjectItem(obj_name,"id")->valuestring))
@@ -199,8 +207,10 @@ void createActivity(char *job_id)
 			if(cJSON_GetObjectItem(trigger,"time")->valueint!=-1){
 				// Check whether all activities that trigger.id depends on are finished
 				if(checkDependedActivities(cJSON_GetObjectItem(trigger,"id")->valuestring)){
-					setTimeout(cJSON_GetObjectItem(trigger,"time")->valueint);
-					createActivity(cJSON_GetObjectItem(trigger,"id")->valuestring);
+					//createActivityAfterTimeout(trigger);
+					pthread_create(&tid2,NULL , createActivityAfterTimeout, (void *) trigger);
+					//setTimeout(cJSON_GetObjectItem(trigger,"time")->valueint);
+					//createActivity(cJSON_GetObjectItem(trigger,"id")->valuestring);
 				}
 			}
 		}
