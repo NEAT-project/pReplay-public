@@ -133,52 +133,54 @@ int my_trace(CURL *handle, curl_infotype type,
 }
 
 
-
-
-
-void  request_url(char *url)
+static void setup(CURL *hnd, int num, char *url)
 {
-    int still_running; /* keep number of running handles */
+  FILE *out;
+  char filename[128];
 
-    CURL *eh = curl_easy_init();
-    /* set options */
-   // setup(easy[i], i, url);
-    FILE *out;
-    char filename[128];
-  int num=0;
+  snprintf(filename, 128, "dl-%d", num);
 
-    snprintf(filename, 128, "dl-%d", num);
+  out = fopen(filename, "wb");
 
-    out = fopen(filename, "wb");
-
-    // write to this file
-    curl_easy_setopt(eh, CURLOPT_WRITEDATA, out);
-
-    /* send all data to this function  */
+  // write to this file 
+  curl_easy_setopt(hnd, CURLOPT_WRITEDATA, out);
+  
+   /* send all data to this function  */
     //curl_easy_setopt(hnd, CURLOPT_WRITEFUNCTION, write_data);
 
 
-    /* set the same URL */
-    curl_easy_setopt(eh, CURLOPT_URL, url);
+  /* set the same URL */
+  curl_easy_setopt(hnd, CURLOPT_URL, url);
 
   /* send it verbose for max debuggaility */
   //curl_easy_setopt(hnd, CURLOPT_VERBOSE, 1L);
   //curl_easy_setopt(hnd, CURLOPT_DEBUGFUNCTION, my_trace);
 
-    /* HTTP/2 please */
-    curl_easy_setopt(eh, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
+  /* HTTP/2 please */
+  curl_easy_setopt(hnd, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
 
-    /* we use a self-signed test server, skip verification during debugging */
-    curl_easy_setopt(eh, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(eh, CURLOPT_SSL_VERIFYHOST, 0L);
+  /* we use a self-signed test server, skip verification during debugging */
+  curl_easy_setopt(hnd, CURLOPT_SSL_VERIFYPEER, 0L);
+  curl_easy_setopt(hnd, CURLOPT_SSL_VERIFYHOST, 0L);
 
-    #if (CURLPIPE_MULTIPLEX > 0)
-    /* wait for pipe connection to confirm */
-    curl_easy_setopt(eh, CURLOPT_PIPEWAIT, 1L);
-    #endif
+#if (CURLPIPE_MULTIPLEX > 0)
+  /* wait for pipe connection to confirm */
+  curl_easy_setopt(hnd, CURLOPT_PIPEWAIT, 1L);
+#endif
+
+  curl_hnd[num] = hnd;
+}
+
+
+
+void  request_url(char *url, int i)
+{
+    int still_running; /* keep number of running handles */
+    /* set options */
+    setup(easy[i], i, url);
 
     /* add the individual transfer */
-    curl_multi_add_handle(multi_handle, eh);
+    curl_multi_add_handle(multi_handle, easy[i]);
  
 
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
@@ -283,9 +285,9 @@ int main(int argc, char **argv)
     strcpy(orig_line,line);
     strt[0]=strtok(line,"/");
     if(strt!=NULL && strcmp(strt[0],"https:")==0){
-     // easy[i] = curl_easy_init();
+      easy[i] = curl_easy_init();
       /* set options */
-      request_url(strtok(orig_line,"\n"));
+      request_url(strtok(orig_line,"\n"),i);
       i++;
     }
   }
@@ -314,7 +316,7 @@ int main(int argc, char **argv)
   easy[i] = curl_easy_init();
   request_url("https://193.10.227.23:8000/dn_files/widget2.0.js",i);
   i++;
-  curl_multi_cleanup(multi_handle);
+  /*curl_multi_cleanup(multi_handle);
 
   int j;
   for(j=0; j<i; i++)

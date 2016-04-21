@@ -17,12 +17,14 @@ written by-- Mohd Rajiullah*/
 void createActivity(char *job_id);
 cJSON *json, *this_objs_array, *this_acts_array,*map_start, *map_complete;
 struct timeval start;
+pthread_mutex_t lock;
 
 
 
 static int cJSON_strcasecmp(const char *s1,const char *s2)
 {
         if (!s1) return (s1==s2)?0:1;if (!s2) return 1;
+	/* QUESTION: is this below statements to compare the first letter? */
         for(; tolower(*s1) == tolower(*s2); ++s1, ++s2) if(*s1 == 0)    return 0;
         return tolower(*(const unsigned char *)s1) - tolower(*(const unsigned char *)s2);
 }
@@ -31,6 +33,8 @@ int cJSON_HasArrayItem(cJSON *array, const char *string)
 {
 	int i;
 	char *out, c1, c2;
+
+	pthread_mutex_lock(&lock);
 	for(i=0; i<cJSON_GetArraySize(array); i++)
 		{
 		cJSON * obj= cJSON_GetArrayItem(array, i);
@@ -41,10 +45,14 @@ int cJSON_HasArrayItem(cJSON *array, const char *string)
 		char * C2=C1+4;
 		C2[strlen(C2)-1]=0;
 		if(cJSON_strcasecmp(C2,string)==0){
+			free(C1);
+			pthread_mutex_unlock(&lock);
 			return i;
 		}
-		
+		free(C1);
 	}
+	pthread_mutex_unlock(&lock);
+
 	return -1;
 }
 
@@ -232,7 +240,7 @@ void run()
 	map_complete=cJSON_CreateObject();
 	gettimeofday(&start, NULL);
 	createActivity(cJSON_GetObjectItem(json,"start_activity")->valuestring);
-	sleep(5);
+	sleep(4);
 	//printf("start_activity:%s\n",cJSON_GetObjectItem(json,"start_activity")->valuestring); 
 }
 
@@ -408,6 +416,7 @@ void doit(char *text)
 		if(pch1 &&  (strlen(Cid)==strlen(cJSON_GetObjectItem(dep,"a2")->valuestring))){
 			b2= cJSON_GetObjectItem(obj,cJSON_GetObjectItem(dep,"a2")->valuestring);
 			}	
+		free(Cidd);
 	}
 	
 	
@@ -508,12 +517,22 @@ void dofile(char *filename)
 
 int main (int argc, char * argv[]) {
 	
+
 	if(argc !=2){
 		printf("usage: %s filename\n",argv[0]);
 		exit(0);
 	}
 
+	if (pthread_mutex_init(&lock, NULL) != 0) {
+		printf("\n mutex init failed\n");
+		return 1;
+	}
+
 	dofile(argv[1]); 
+
+	pthread_mutex_destroy(&lock);
+
+
 
 	
 	return 0;

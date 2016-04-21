@@ -44,7 +44,12 @@ static int cJSON_strcasecmp(const char *s1,const char *s2)
 }
 
 static void *(*cJSON_malloc)(size_t sz) = malloc;
-static void (*cJSON_free)(void *ptr) = free;
+static void *cJSON_free(void *ptr)
+{
+	if (ptr)
+		free(ptr);
+	ptr = NULL;
+}
 
 static char* cJSON_strdup(const char* str)
 {
@@ -61,12 +66,12 @@ void cJSON_InitHooks(cJSON_Hooks* hooks)
 {
     if (!hooks) { /* Reset hooks */
         cJSON_malloc = malloc;
-        cJSON_free = free;
+        //cJSON_free = free;
         return;
     }
 
 	cJSON_malloc = (hooks->malloc_fn)?hooks->malloc_fn:malloc;
-	cJSON_free	 = (hooks->free_fn)?hooks->free_fn:free;
+	//cJSON_free	 = (hooks->free_fn)?hooks->free_fn:free;
 }
 
 /* Internal constructor. */
@@ -647,10 +652,14 @@ static char *print_object(cJSON *item,int depth,int fmt,printbuffer *p)
 			strcpy(ptr,entries[i]);ptr+=strlen(entries[i]);
 			if (i!=numentries-1) *ptr++=',';
 			if (fmt) *ptr++='\n';*ptr=0;
-			cJSON_free(names[i]);cJSON_free(entries[i]);
+			if (names[i]) cJSON_free(names[i]);
+			if (entries[i]) cJSON_free(entries[i]);
 		}
 		
-		cJSON_free(names);cJSON_free(entries);
+		if (names)
+			cJSON_free(names);
+		if (entries)
+			cJSON_free(entries);
 		if (fmt) for (i=0;i<depth-1;i++) *ptr++='\t';
 		*ptr++='}';*ptr++=0;
 	}

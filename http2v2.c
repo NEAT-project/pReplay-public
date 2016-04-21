@@ -1,10 +1,13 @@
 /* <DESC>
  * Multiplexed HTTP/2 downloads over a single connection
+ * Using thread with structure
  * </DESC>
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
+
 
 /* somewhat unix-specific */
 #include <sys/time.h>
@@ -135,50 +138,59 @@ int my_trace(CURL *handle, curl_infotype type,
 
 
 
+struct arg_struct{
+    char *uri;
+    int count;
+};
 
-void  request_url(char *url)
+//void  request_url(char *url, int i)
+void  *request_url(void *arguments)
 {
+    //struct arg_struct *args=(struct arg_struct *)arguments;
+    struct arg_struct *args=arguments;
     int still_running; /* keep number of running handles */
 
-    CURL *eh = curl_easy_init();
+    printf("C=%d, URL=%s\n",args->count, args->uri);
     /* set options */
-   // setup(easy[i], i, url);
-    FILE *out;
-    char filename[128];
-  int num=0;
+    //setup(easy[args->count], args->count, args->uri);
 
-    snprintf(filename, 128, "dl-%d", num);
+ FILE *out;
+ char filename[128];
 
-    out = fopen(filename, "wb");
+ snprintf(filename, 128, "dl-%d", args->count);
 
-    // write to this file
-    curl_easy_setopt(eh, CURLOPT_WRITEDATA, out);
+ out = fopen(filename, "wb");
 
-    /* send all data to this function  */
-    //curl_easy_setopt(hnd, CURLOPT_WRITEFUNCTION, write_data);
+ // write to this file
+ curl_easy_setopt(easy[args->count], CURLOPT_WRITEDATA, out);
+
+ /* send all data to this function  */
+ //curl_easy_setopt(hnd, CURLOPT_WRITEFUNCTION, write_data);
 
 
-    /* set the same URL */
-    curl_easy_setopt(eh, CURLOPT_URL, url);
+ /* set the same URL */
+ curl_easy_setopt(easy[args->count], CURLOPT_URL, args->uri);
 
-  /* send it verbose for max debuggaility */
-  //curl_easy_setopt(hnd, CURLOPT_VERBOSE, 1L);
-  //curl_easy_setopt(hnd, CURLOPT_DEBUGFUNCTION, my_trace);
+ /* send it verbose for max debuggaility */
+ //curl_easy_setopt(easy[args->count], CURLOPT_VERBOSE, 1L);
+ //curl_easy_setopt(easy[args->count], CURLOPT_DEBUGFUNCTION, my_trace);
 
-    /* HTTP/2 please */
-    curl_easy_setopt(eh, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
+ /* HTTP/2 please */
+ curl_easy_setopt(easy[args->count], CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
 
-    /* we use a self-signed test server, skip verification during debugging */
-    curl_easy_setopt(eh, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(eh, CURLOPT_SSL_VERIFYHOST, 0L);
+ /* we use a self-signed test server, skip verification during debugging */
+ curl_easy_setopt(easy[args->count], CURLOPT_SSL_VERIFYPEER, 0L);
+ curl_easy_setopt(easy[args->count], CURLOPT_SSL_VERIFYHOST, 0L);
 
-    #if (CURLPIPE_MULTIPLEX > 0)
-    /* wait for pipe connection to confirm */
-    curl_easy_setopt(eh, CURLOPT_PIPEWAIT, 1L);
-    #endif
+#if (CURLPIPE_MULTIPLEX > 0)
+ /* wait for pipe connection to confirm */
+ curl_easy_setopt(easy[args->count], CURLOPT_PIPEWAIT, 1L);
+#endif
+
+ curl_hnd[args->count] = easy[args->count];
 
     /* add the individual transfer */
-    curl_multi_add_handle(multi_handle, eh);
+    curl_multi_add_handle(multi_handle, easy[args->count]);
  
 
   curl_multi_setopt(multi_handle, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
@@ -264,34 +276,49 @@ int main(int argc, char **argv)
 {
   
   int i=0;
-  
+
+  pthread_t http2_thread1, http2_thread2, http2_thread3;
+  struct arg_struct args;
 
  /* init a multi stack */
   multi_handle = curl_multi_init();
 
-  FILE *file;
-  char line[256], orig_line[256];
-  char * strt[100];
+  easy[i] = curl_easy_init();
+  args.count=i;
+  args.uri="https://193.10.227.23:8000/dn_files/thente66.jpg";
+  if(pthread_create(&http2_thread1, NULL,&request_url, (void *)&args))
+  {
+   printf("Uh-oh!\n");
+   return -1;
+  }
 
-  file=fopen(argv[1], "r");
-  if(file==NULL){
-    perror("Error opening file");
+
+ i++;
+
+
+  easy[i] = curl_easy_init();
+  args.count=i;
+  args.uri="https://193.10.227.23:8000/dn_files/ullgren66.png";
+  if(pthread_create(&http2_thread2, NULL,&request_url, (void *)&args))
+    {
+    printf("Uh-oh!\n");
     return -1;
   }
 
-  while (fgets(line, sizeof(line), file)) {
-    strcpy(orig_line,line);
-    strt[0]=strtok(line,"/");
-    if(strt!=NULL && strcmp(strt[0],"https:")==0){
-     // easy[i] = curl_easy_init();
-      /* set options */
-      request_url(strtok(orig_line,"\n"));
-      i++;
+  i++;
+  
+  easy[i] = curl_easy_init();
+  args.count=i;
+  args.uri="https://193.10.227.23:8000/dn_files/widget2.0.js";
+  if(pthread_create(&http2_thread3, NULL,&request_url, (void *)&args))
+    {
+     printf("Uh-oh!\n");
+     return -1;
     }
-  }
 
-
-  /* easy[i] = curl_easy_init();
+ /* i++;
+  
+   easy[i] = curl_easy_init();
   request_url("https://193.10.227.23:8000/dn_files/thente66.jpg",i);
   i++;
   
@@ -302,19 +329,8 @@ int main(int argc, char **argv)
   easy[i] = curl_easy_init();
   request_url("https://193.10.227.23:8000/dn_files/widget2.0.js",i);
   i++;
-  
-   easy[i] = curl_easy_init();
-  request_url("https://193.10.227.23:8000/pages/go.com/go.com/sites/default/files/css/css_pbm0lsQQJ7A7WCCIMgxLho6mI_kBNgznNUWmTWcnfoE.css",i);
-  i++;
-  
-  easy[i] = curl_easy_init();
-  request_url("https://193.10.227.23:8000/dn_files/ullgren66.png",i);
-  i++;
-  
-  easy[i] = curl_easy_init();
-  request_url("https://193.10.227.23:8000/dn_files/widget2.0.js",i);
-  i++;
-  curl_multi_cleanup(multi_handle);
+ */
+  /*curl_multi_cleanup(multi_handle);
 
   int j;
   for(j=0; j<i; i++)

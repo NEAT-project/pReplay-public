@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 /* somewhat unix-specific */
 #include <sys/time.h>
@@ -136,8 +137,9 @@ int my_trace(CURL *handle, curl_infotype type,
 
 
 
-void  request_url(char *url)
+void  *request_url(void *url)
 {
+	
     int still_running; /* keep number of running handles */
 
     CURL *eh = curl_easy_init();
@@ -264,6 +266,7 @@ int main(int argc, char **argv)
 {
   
   int i=0;
+  pthread_t tid;
   
 
  /* init a multi stack */
@@ -285,7 +288,8 @@ int main(int argc, char **argv)
     if(strt!=NULL && strcmp(strt[0],"https:")==0){
      // easy[i] = curl_easy_init();
       /* set options */
-      request_url(strtok(orig_line,"\n"));
+      //request_url(strtok(orig_line,"\n"));
+      pthread_create(&tid,NULL,request_url, (void *)strtok(orig_line,"\n"));
       i++;
     }
   }
