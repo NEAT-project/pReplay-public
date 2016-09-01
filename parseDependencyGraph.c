@@ -50,7 +50,7 @@ void createActivity(char *job_id);
 int cJSON_HasArrayItem(cJSON *array, const char *string);
 void onComplete(cJSON *obj_name);
 
-int debug = 1;
+int debug = 0;
 double page_load_time = 0.0;
 unsigned long page_size = 0;
 int json_output = 0;
@@ -75,9 +75,7 @@ int protocol = HTTP1;
 int request_count = 0;
 int MAX_CON;
 CURL *easyh1[EASY_HANDLES];
-//CURL *easyh1;
 int *worker_status;
-//int worker_status[MAX_CON] = {0, 0, 0, 0, 0, 0};
 
 static size_t
 memory_callback(void *contents, size_t size, size_t nmemb, void *userp)
@@ -214,7 +212,6 @@ run_worker(void *arg)
         chunk.size = 0;
         chunk.enabled = 0;
 
-        //char *url1="http://example.com";
 
         curl_easy_setopt(easyh1[i], CURLOPT_URL, url);
         //curl_easy_setopt(easyh1[i], CURLOPT_COOKIEFILE, "cookie.tmp");
@@ -223,7 +220,6 @@ run_worker(void *arg)
         chunk.size = 0;
 
         if ((res=curl_easy_perform(easyh1[i])) != CURLE_OK){
-            //fprintf(stderr, "i= %d\n", i);
             perror("Curl error");
         }
 
@@ -269,10 +265,6 @@ run_worker(void *arg)
 	}else{
 		thread_count--;
 	}
-	/*if(thread_count==0){
-		printf("BECOME 0 in run_worker\n");
-		fflush(stdout);
-	}*/
 
 	if(thread_count==0){
 		pthread_cond_signal(&count_threshold_cv);
@@ -592,9 +584,14 @@ onComplete(cJSON *obj_name)
     }
 
     // TO DO update task completion maps
+    pthread_mutex_lock(&lock);
     if (!cJSON_HasObjectItem(map_complete, cJSON_GetObjectItem(obj_name, "id")->valuestring)) {
         cJSON_AddNumberToObject(map_complete, cJSON_GetObjectItem(obj_name, "id")->valuestring, 1);
+    }else {
+        fprintf(stderr, "dublicate object - fix logic!\n");
+        exit(EXIT_FAILURE);
     }
+    pthread_mutex_unlock(&lock);
 
     // Check whether should trigger dependent activities when 'time' == -1
     if (cJSON_HasObjectItem(obj_name, "triggers")) {
@@ -650,10 +647,6 @@ void
     onComplete(obj_name);
     pthread_mutex_lock(&count_mutex);
     thread_count--;
-    /*if(thread_count==0){
-    	printf("BECOME 0 in compActivity\n");
-	fflush(stdout);
-    }*/
     if(thread_count==0){
 	pthread_cond_signal(&count_threshold_cv);
      }
@@ -690,6 +683,7 @@ createActivity(char *job_id)
     struct timeval ts_s;
     cJSON * obj;
     cJSON * obj_name;
+    uint8_t duplicate_job = 0;
 
 
     int i = cJSON_HasArrayItem(this_acts_array, job_id);
@@ -697,14 +691,21 @@ createActivity(char *job_id)
         obj = cJSON_GetArrayItem(this_acts_array, i);
         obj_name = cJSON_GetObjectItem(obj, job_id);
 
+        pthread_mutex_lock(&lock);
+
         if (cJSON_HasObjectItem(obj_name, "is_started")){
             if (cJSON_GetObjectItem(obj_name, "is_started")->valueint == 1) {
-                return;
+                duplicate_job = 1;
             } else {
                 cJSON_GetObjectItem(obj_name,"is_started")->valueint = 1;
             }
         } else {
             cJSON_AddNumberToObject(obj_name,"is_started",1);
+        }
+        pthread_mutex_unlock(&lock);
+
+        if (duplicate_job) {
+                   return;
         }
 
 
@@ -776,9 +777,15 @@ createActivity(char *job_id)
             	pthread_detach(tid1);
         }
         // TO DO update task start maps
+        pthread_mutex_lock(&lock);
         if (!cJSON_HasObjectItem(map_start, cJSON_GetObjectItem(obj_name, "id")->valuestring)) {
             cJSON_AddNumberToObject(map_start, cJSON_GetObjectItem(obj_name, "id")->valuestring,1);
+        }else {
+        fprintf(stderr, "dublicate object - fix logic!\n");
+        exit(EXIT_FAILURE);
         }
+        pthread_mutex_unlock(&lock);
+
 
         // Check whether should trigger dependent activities when 'time' != -1
         if (cJSON_HasObjectItem(obj_name, "triggers")) {
