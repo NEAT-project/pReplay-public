@@ -50,7 +50,7 @@ void createActivity(char *job_id);
 int cJSON_HasArrayItem(cJSON *array, const char *string);
 void onComplete(cJSON *obj_name);
 
-int debug = 0;
+int debug = 1;
 double page_load_time = 0.0;
 unsigned long page_size = 0;
 int json_output = 0;
